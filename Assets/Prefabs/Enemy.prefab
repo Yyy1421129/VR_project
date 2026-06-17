@@ -1729,7 +1729,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 639143790757031335}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.3625813, y: 0.87442946, z: 15.198668}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
   - {fileID: 634204376690216031}
@@ -1750,7 +1750,7 @@ Animator:
   m_Controller: {fileID: 9100000, guid: 731ab93f18c9e484b9e9f9e18db77616, type: 2}
   m_CullingMode: 1
   m_UpdateMode: 0
-  m_ApplyRootMotion: 1
+  m_ApplyRootMotion: 0
   m_LinearVelocityBlending: 0
   m_WarningMessage: 
   m_HasTransformHierarchy: 1
@@ -1769,13 +1769,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   startingHealth: 100
-  minTimeUnderCover: 10
-  maxTimeUnderCover: 15
-  minShotsToTake: 5
-  maxShotsToTake: 10
+  minTimeUnderCover: 0.5
+  maxTimeUnderCover: 2
+  minShotsToTake: 2
+  maxShotsToTake: 4
+  timeBetweenShots: 0.4
   rotationSpeed: 180
-  damage: 20
-  shootingAccuracy: 100
+  damage: 1
+  shootingAccuracy: 70
+  scoreValue: 5
   shootingPosition: {fileID: 632319898438811453}
   bloodSplatterFX: {fileID: 19886758, guid: 8c27aeead6d968e4ba986702d6b84335, type: 3}
 --- !u!195 &7591617645351598606

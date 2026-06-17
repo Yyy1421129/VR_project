@@ -1,19 +1,25 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
 public class PhysicsDamage : MonoBehaviour, ITakeDamage
 {
-    private Rigidbody rigidBody;
+    [SerializeField] int scoreValue;
+    [SerializeField] float forceMultiplier = 1f;
 
-    private void Awake()
+    Rigidbody rigidBody;
+
+    void Awake()
     {
         rigidBody = GetComponent<Rigidbody>();
     }
 
     public void TakeDamage(Weapon weapon, Projectile projectile, Vector3 contactPoint)
     {
-        rigidBody.AddForce(projectile.transform.forward * weapon.GetShootingForce(), ForceMode.Impulse);
+        rigidBody.AddForce(projectile.transform.forward * weapon.GetShootingForce() * forceMultiplier, ForceMode.Impulse);
+
+        if (scoreValue > 0 && ScoreManager.instance != null)
+        {
+            ScoreManager.instance.AddScore(scoreValue);
+        }
     }
 }

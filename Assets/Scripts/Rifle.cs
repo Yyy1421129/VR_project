@@ -1,16 +1,14 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 
-
 public class Rifle : Weapon
 {
-    [SerializeField] private float fireRate;
-    private Projectile projectile;
+    [SerializeField] float fireRate = 3f;
 
-    private WaitForSeconds wait;
+    Projectile projectile;
+    WaitForSeconds wait;
+    Coroutine shootingCoroutine;
 
     protected override void Awake()
     {
@@ -18,19 +16,22 @@ public class Rifle : Weapon
         projectile = GetComponentInChildren<Projectile>();
     }
 
-    private void Start()
+    void Start()
     {
-        wait = new WaitForSeconds(1 / fireRate);
-        projectile.Init(this);
+        wait = new WaitForSeconds(1f / fireRate);
+        if (projectile != null)
+        {
+            projectile.Init(this);
+        }
     }
 
     protected override void StartShooting(XRBaseInteractor interactor)
     {
         base.StartShooting(interactor);
-        StartCoroutine(ShootingCO());
+        shootingCoroutine = StartCoroutine(ShootingCO());
     }
 
-    private IEnumerator ShootingCO()
+    IEnumerator ShootingCO()
     {
         while (true)
         {
@@ -42,12 +43,20 @@ public class Rifle : Weapon
     protected override void Shoot()
     {
         base.Shoot();
-        projectile.Launch();
+        if (projectile != null)
+        {
+            projectile.Launch();
+        }
     }
 
     protected override void StopShooting(XRBaseInteractor interactor)
     {
         base.StopShooting(interactor);
-        StopAllCoroutines();
+
+        if (shootingCoroutine != null)
+        {
+            StopCoroutine(shootingCoroutine);
+            shootingCoroutine = null;
+        }
     }
 }

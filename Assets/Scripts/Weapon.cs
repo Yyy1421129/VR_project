@@ -1,30 +1,57 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(XRGrabInteractable))]
 public class Weapon : MonoBehaviour
 {
+    const string GunShotResourcePath = "Audio/GUN_FIRE-GoodSoundForYou-820112263";
+
     [SerializeField] protected float shootingForce;
     [SerializeField] protected Transform bulletSpawn;
-    [SerializeField] private float recoilForce;
-    [SerializeField] private float damage;
+    [SerializeField] float recoilForce;
+    [SerializeField] float damage;
+    [SerializeField] AudioClip gunShotClip;
 
-    private Rigidbody rigidBody;
-    private XRGrabInteractable interactableWeapon;
-    private AudioSource audioSource;  // Audio source for shot sound
+    Rigidbody rigidBody;
+    XRGrabInteractable interactableWeapon;
+    AudioSource audioSource;
 
     protected virtual void Awake()
     {
         interactableWeapon = GetComponent<XRGrabInteractable>();
         rigidBody = GetComponent<Rigidbody>();
-        audioSource = GetComponent<AudioSource>();  // Reference the AudioSource component
+        audioSource = GetComponent<AudioSource>();
         SetupInteractableWeaponEvents();
     }
 
-    private void SetupInteractableWeaponEvents()
+    protected virtual void Start()
+    {
+        ApplyGunShotClip();
+    }
+
+    void ApplyGunShotClip()
+    {
+        if (audioSource == null)
+        {
+            return;
+        }
+
+        AudioClip clip = gunShotClip != null ? gunShotClip : audioSource.clip;
+        if (clip == null)
+        {
+            clip = Resources.Load<AudioClip>(GunShotResourcePath);
+        }
+
+        if (clip != null)
+        {
+            audioSource.clip = clip;
+            audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 0f;
+        }
+    }
+
+    void SetupInteractableWeaponEvents()
     {
         interactableWeapon.onSelectEntered.AddListener(PickUpWeapon);
         interactableWeapon.onSelectExited.AddListener(DropWeapon);
@@ -32,14 +59,22 @@ public class Weapon : MonoBehaviour
         interactableWeapon.onDeactivate.AddListener(StopShooting);
     }
 
-    private void PickUpWeapon(XRBaseInteractor interactor)
+    void PickUpWeapon(XRBaseInteractor interactor)
     {
-        interactor.GetComponent<MeshHidder>().Hide();
+        var hider = interactor.GetComponent<MeshHidder>();
+        if (hider != null)
+        {
+            hider.Hide();
+        }
     }
- 
-    private void DropWeapon(XRBaseInteractor interactor)
+
+    void DropWeapon(XRBaseInteractor interactor)
     {
-        interactor.GetComponent<MeshHidder>().Show();
+        var hider = interactor.GetComponent<MeshHidder>();
+        if (hider != null)
+        {
+            hider.Show();
+        }
     }
 
     protected virtual void StartShooting(XRBaseInteractor interactor)
@@ -53,10 +88,10 @@ public class Weapon : MonoBehaviour
     protected virtual void Shoot()
     {
         ApplyRecoil();
-        PlayShotSound();  // Play the shot sound here
+        PlayShotSound();
     }
 
-    private void ApplyRecoil()
+    void ApplyRecoil()
     {
         rigidBody.AddRelativeForce(Vector3.back * recoilForce, ForceMode.Impulse);
     }
@@ -71,11 +106,11 @@ public class Weapon : MonoBehaviour
         return damage;
     }
 
-    private void PlayShotSound()
+    void PlayShotSound()
     {
         if (audioSource != null && audioSource.clip != null)
         {
-            audioSource.Play();
+            audioSource.PlayOneShot(audioSource.clip);
         }
     }
 }

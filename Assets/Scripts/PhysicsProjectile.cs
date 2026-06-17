@@ -1,14 +1,14 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
 public class PhysicsProjectile : Projectile
 {
-    [SerializeField] private float lifeTime;
-    private Rigidbody rigidBody;
+    [SerializeField] float lifeTime = 5f;
+    [SerializeField] string[] ignoreTags = { "Player" };
 
-    private void Awake()
+    Rigidbody rigidBody;
+
+    void Awake()
     {
         rigidBody = GetComponent<Rigidbody>();
     }
@@ -25,14 +25,39 @@ public class PhysicsProjectile : Projectile
         rigidBody.AddRelativeForce(Vector3.forward * weapon.GetShootingForce(), ForceMode.Impulse);
     }
 
-    private void OnTriggerEnter(Collider other)
+    void OnTriggerEnter(Collider other)
     {
-        Destroy(gameObject);
-        ITakeDamage[] damageTakers = other.GetComponentsInParent<ITakeDamage>();
-
-        foreach (var taker in damageTakers)
+        if (ShouldIgnore(other))
         {
-            taker.TakeDamage(weapon, this, transform.position);
+            return;
         }
+
+        ITakeDamage[] damageTakers = other.GetComponentsInParent<ITakeDamage>();
+        Vector3 contactPoint = transform.position;
+
+        foreach (ITakeDamage taker in damageTakers)
+        {
+            taker.TakeDamage(weapon, this, contactPoint);
+        }
+
+        Destroy(gameObject);
+    }
+
+    bool ShouldIgnore(Collider other)
+    {
+        if (ignoreTags == null)
+        {
+            return false;
+        }
+
+        foreach (string tag in ignoreTags)
+        {
+            if (!string.IsNullOrEmpty(tag) && other.CompareTag(tag))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

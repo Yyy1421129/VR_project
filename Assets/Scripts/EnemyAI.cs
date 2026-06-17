@@ -1,146 +1,375 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
 public class EnemyAI : MonoBehaviour, ITakeDamage
 {
-    const string RUN_TRIGGER = "Run";
-    const string CROUCH_TRIGGER = "Crouch";
-    const string SHOOT_TRIGGER = "Shoot";
+    const string RunTrigger = "Run";
+    const string CrouchTrigger = "Crouch";
+    const string ShootTrigger = "Shoot";
 
-    [SerializeField] private float startingHealth;
-    [SerializeField] private float minTimeUnderCover;
-    [SerializeField] private float maxTimeUnderCover;
-    [SerializeField] private int minShotsToTake;
-    [SerializeField] private int maxShotsToTake;
-    [SerializeField] private float rotationSpeed;
-    [SerializeField] private float damage;
+    [SerializeField] float startingHealth = 100f;
+    [SerializeField] float minTimeUnderCover = 0.5f;
+    [SerializeField] float maxTimeUnderCover = 2f;
+    [SerializeField] int minShotsToTake = 2;
+    [SerializeField] int maxShotsToTake = 4;
+    [SerializeField] float timeBetweenShots = 0.4f;
+    [SerializeField] float rotationSpeed = 120f;
+    [SerializeField] float damage = 1f;
     [Range(0, 100)]
-    [SerializeField] private float shootingAccuracy;
+    [SerializeField] float shootingAccuracy = 70f;
+    [SerializeField] int scoreValue = 5;
+    [SerializeField] float coverArrivalDistance = 1.5f;
+    [SerializeField] float nearCoverStuckTime = 0.4f;
+    [SerializeField] float maxTravelTime = 20f;
+    [Range(0, 100)]
+    [SerializeField] float crouchChance = 50f;
 
-    [SerializeField] private Transform shootingPosition;
-    [SerializeField] private ParticleSystem bloodSplatterFX;
+    [SerializeField] Transform shootingPosition;
+    [SerializeField] ParticleSystem bloodSplatterFX;
 
-    private bool isShooting;
-    private int currentShotsTaken;
-    private int currentMaxShotsToTake;
-    private NavMeshAgent agent;
-    private Player player;
-    private Transform occupiedCoverSpot;
-    private Animator animator;
+    bool isShooting;
+    bool shootingStarted;
+    bool isDead;
+    bool useCrouchStance;
+    Coroutine shootingCycleRoutine;
 
-    private float _health;
+    NavMeshAgent agent;
+    Player player;
+    Transform occupiedCoverSpot;
+    Animator animator;
+
+    public Transform CoverSpot => occupiedCoverSpot;
+
+    float travelTimer;
+    float nearCoverTimer;
+
+    float _health;
     public float health
     {
-        get
-        {
-            return _health;
-        }
-        set
-        {
-            _health = Mathf.Clamp(value, 0, startingHealth);
-        }
+        get => _health;
+        set => _health = Mathf.Clamp(value, 0, startingHealth);
     }
 
-    private void Awake()
+    void Awake()
     {
         animator = GetComponent<Animator>();
         agent = GetComponent<NavMeshAgent>();
-        animator.SetTrigger(RUN_TRIGGER);
+        if (animator != null)
+        {
+            animator.applyRootMotion = false;
+        }
+
         _health = startingHealth;
     }
 
-    public void Init(Player player, Transform coverSpot)
+    public void Init(Player targetPlayer, Transform coverSpot)
     {
         occupiedCoverSpot = coverSpot;
-        this.player = player;
+        player = targetPlayer;
+        useCrouchStance = Random.Range(0, 100) < crouchChance;
+        travelTimer = 0f;
+        nearCoverTimer = 0f;
         GetToCover();
     }
 
-    private void GetToCover()
+    void Start()
     {
+        if (player != null || occupiedCoverSpot != null)
+        {
+            return;
+        }
+
+        player = FindObjectOfType<Player>();
+        if (player == null)
+        {
+            return;
+        }
+
+        StopMovingAndBeginShooting();
+    }
+
+    void GetToCover()
+    {
+        if (occupiedCoverSpot == null)
+        {
+            StopMovingAndBeginShooting();
+            return;
+        }
+
+        Vector3 destination = occupiedCoverSpot.position;
+        if (!NavMesh.SamplePosition(destination, out NavMeshHit hit, 3f, NavMesh.AllAreas))
+        {
+            StopMovingAndBeginShooting();
+            return;
+        }
+
+        destination = hit.position;
+
         agent.isStopped = false;
-        agent.SetDestination(occupiedCoverSpot.position);
-    }
+        agent.stoppingDistance = 0.3f;
+        agent.SetDestination(destination);
 
-    private void Update()
-    {
-        if(agent.isStopped == false && (transform.position - occupiedCoverSpot.position).sqrMagnitude <= 0.1f)
+        if (animator != null)
         {
-            agent.isStopped = true;
-            StartCoroutine(InitializeShootingCO());
-        }
-        if (isShooting)
-        {
-            RotateTowardsPlayer();
+            animator.SetTrigger(RunTrigger);
         }
     }
-    private IEnumerator InitializeShootingCO()
+
+    void Update()
     {
-        HideBehindCover();
-        yield return new WaitForSeconds(UnityEngine.Random.Range(minTimeUnderCover, maxTimeUnderCover));
-        StartShooting();
+        if (isDead || shootingStarted)
+        {
+            if (isShooting && player != null)
+            {
+                RotateTowardsPlayer();
+            }
+
+            return;
+        }
+
+        if (occupiedCoverSpot == null)
+        {
+            return;
+        }
+
+        travelTimer += Time.deltaTime;
+
+        if (HasReachedCover() || travelTimer >= maxTravelTime)
+        {
+            StopMovingAndBeginShooting();
+        }
     }
 
+    bool HasReachedCover()
+    {
+        float distanceToCoverSpot = GetHorizontalDistance(occupiedCoverSpot.position);
 
-    private void HideBehindCover()
-    {
-        animator.SetTrigger(CROUCH_TRIGGER);
+        if (distanceToCoverSpot <= coverArrivalDistance)
+        {
+            return true;
+        }
+
+        if (distanceToCoverSpot <= coverArrivalDistance + 1f)
+        {
+            if (agent.velocity.sqrMagnitude < 0.02f)
+            {
+                nearCoverTimer += Time.deltaTime;
+            }
+            else
+            {
+                nearCoverTimer = 0f;
+            }
+
+            if (nearCoverTimer >= nearCoverStuckTime)
+            {
+                return true;
+            }
+        }
+        else
+        {
+            nearCoverTimer = 0f;
+        }
+
+        if (agent.pathPending || !agent.hasPath)
+        {
+            return false;
+        }
+
+        if (!float.IsInfinity(agent.remainingDistance)
+            && agent.remainingDistance <= agent.stoppingDistance + 0.2f)
+        {
+            return true;
+        }
+
+        return false;
     }
-    private void StartShooting()
+
+    float GetHorizontalDistance(Vector3 target)
     {
-        isShooting = true;
-        currentMaxShotsToTake = UnityEngine.Random.Range(minShotsToTake, maxShotsToTake);
-        currentShotsTaken = 0;
-        animator.SetTrigger(SHOOT_TRIGGER);
+        Vector3 offset = target - transform.position;
+        offset.y = 0f;
+        return offset.magnitude;
+    }
+
+    void StopMovingAndBeginShooting()
+    {
+        agent.isStopped = true;
+        agent.ResetPath();
+
+        if (animator != null)
+        {
+            animator.ResetTrigger(RunTrigger);
+            if (useCrouchStance)
+            {
+                animator.SetTrigger(CrouchTrigger);
+            }
+        }
+
+        BeginShootingCycle();
+    }
+
+    void BeginShootingCycle()
+    {
+        if (shootingStarted || isDead)
+        {
+            return;
+        }
+
+        shootingStarted = true;
+        shootingCycleRoutine = StartCoroutine(ShootingCycleCO());
+    }
+
+    IEnumerator ShootingCycleCO()
+    {
+        while (!isDead)
+        {
+            if (player == null)
+            {
+                player = FindObjectOfType<Player>();
+                yield return new WaitForSeconds(0.5f);
+                continue;
+            }
+
+            if (player.IsDead)
+            {
+                yield break;
+            }
+
+            PrepareForNextBurst();
+            yield return new WaitForSeconds(Random.Range(minTimeUnderCover, maxTimeUnderCover));
+
+            isShooting = true;
+            int shotsToFire = Random.Range(minShotsToTake, maxShotsToTake + 1);
+
+            for (int i = 0; i < shotsToFire; i++)
+            {
+                if (isDead || player == null || player.IsDead)
+                {
+                    yield break;
+                }
+
+                RotateTowardsPlayer();
+
+                if (animator != null)
+                {
+                    animator.SetTrigger(ShootTrigger);
+                }
+
+                yield return new WaitForSeconds(0.35f);
+                PerformShot();
+                yield return new WaitForSeconds(timeBetweenShots);
+            }
+
+            isShooting = false;
+        }
+    }
+
+    void PrepareForNextBurst()
+    {
+        if (animator == null || !useCrouchStance)
+        {
+            return;
+        }
+
+        animator.SetTrigger(CrouchTrigger);
     }
 
     public void Shoot()
     {
-        bool hitPlayer = UnityEngine.Random.Range(0, 100) < shootingAccuracy;
-
-        if (hitPlayer)
-        {
-            RaycastHit hit;
-            Vector3 direction = player.GetHeadPosition() - shootingPosition.position;
-            if(Physics.Raycast(shootingPosition.position, direction, out hit))
-            {
-                Player player = hit.collider.GetComponentInParent<Player>();
-                if (player)
-                {
-                    player.TakeDamage(damage);
-                }
-            }
-        }
-        currentShotsTaken++;
-        if(currentShotsTaken >= currentMaxShotsToTake)
-        {
-            StartCoroutine(InitializeShootingCO());
-        }
+        PerformShot();
     }
 
-    private void RotateTowardsPlayer()
+    void PerformShot()
+    {
+        if (isDead || player == null || player.IsDead)
+        {
+            return;
+        }
+
+        if (Random.Range(0, 100) >= shootingAccuracy)
+        {
+            return;
+        }
+
+        TryDamagePlayer();
+    }
+
+    void TryDamagePlayer()
+    {
+        if (shootingPosition == null)
+        {
+            player.TakeDamage(damage);
+            return;
+        }
+
+        Vector3 direction = player.GetHeadPosition() - shootingPosition.position;
+        if (Physics.Raycast(shootingPosition.position, direction, out RaycastHit hit))
+        {
+            Player hitPlayer = hit.collider.GetComponentInParent<Player>();
+            if (hitPlayer != null)
+            {
+                hitPlayer.TakeDamage(damage);
+                return;
+            }
+        }
+
+        player.TakeDamage(damage);
+    }
+
+    void RotateTowardsPlayer()
     {
         Vector3 direction = player.GetHeadPosition() - transform.position;
-        direction.y = 0;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
         Quaternion rotation = Quaternion.LookRotation(direction);
-        rotation = Quaternion.RotateTowards(transform.rotation, rotation, rotationSpeed * Time.deltaTime);
-        transform.rotation = rotation;
-    } 
+        transform.rotation = Quaternion.RotateTowards(
+            transform.rotation,
+            rotation,
+            rotationSpeed * Time.deltaTime);
+    }
 
     public void TakeDamage(Weapon weapon, Projectile projectile, Vector3 contactPoint)
     {
-        health -= weapon.GetDamage();
-        if (health <= 0)
+        if (isDead)
         {
-            ScoreManager.instance.AddScore(5);  // Add score here
+            return;
+        }
+
+        health -= weapon.GetDamage();
+
+        if (bloodSplatterFX != null)
+        {
+            ParticleSystem effect = Instantiate(
+                bloodSplatterFX,
+                contactPoint,
+                Quaternion.LookRotation(weapon.transform.position - contactPoint));
+            effect.Stop();
+            effect.Play();
+        }
+
+        if (health <= 0f)
+        {
+            isDead = true;
+
+            if (shootingCycleRoutine != null)
+            {
+                StopCoroutine(shootingCycleRoutine);
+            }
+
+            if (ScoreManager.instance != null)
+            {
+                ScoreManager.instance.AddScore(scoreValue);
+                ScoreManager.instance.PlayEnemyDefeatSound();
+            }
+
             Destroy(gameObject);
         }
-        ParticleSystem effect = Instantiate(bloodSplatterFX, contactPoint, Quaternion.LookRotation(weapon.transform.position - contactPoint));
-        effect.Stop();
-        effect.Play();
     }
 }

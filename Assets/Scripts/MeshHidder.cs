@@ -1,30 +1,37 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-
+﻿using UnityEngine;
 
 public class MeshHidder : MonoBehaviour
 {
-    private MeshRenderer[] meshes;
+    Renderer[] renderers;
 
-    private void Awake()
+    void Awake()
     {
-        meshes = GetComponentsInChildren<MeshRenderer>();
+        renderers = GetComponentsInChildren<Renderer>(true);
     }
 
     public void Show()
     {
-        foreach (var mesh in meshes)
-        {
-            mesh.enabled = true;
-        }
+        SetRenderersEnabled(true);
     }
 
     public void Hide()
     {
-        foreach (var mesh in meshes)
+        SetRenderersEnabled(false);
+    }
+
+    void SetRenderersEnabled(bool enabled)
+    {
+        if (renderers == null)
         {
-            mesh.enabled = false;
+            return;
+        }
+
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer != null)
+            {
+                renderer.enabled = enabled;
+            }
         }
     }
 }
