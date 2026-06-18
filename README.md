@@ -17,6 +17,7 @@ A virtual reality shooter game developed as a project and learning experience. T
 - [Using the XR Simulator](#using-the-xr-simulator)
 - [External Packages](#external-packages)
 - [Contributing](#contributing)
+- [项目分工](#项目分工)
 
 ## Features
 - **VR Bullet Shooting**: Players can shoot bullets with sound effects on firing.
@@ -128,3 +129,12 @@ bash
 Copy code
 git push origin feature-name
 Open a pull request.
+
+## Project division of work
+
+| 成员 | 分工 |
+|------|------|
+| **杨熠** | 项目主要构思，整个项目的搭建及完善，音乐及美术设计 |
+| **何明鸿** | 参与项目初期的设计构思，寻找素材 |
+| **李金泽** | 参与项目初期的设计构思，寻找素材 |
+| **易俊锋** | 参与项目初期的设计构思，寻找素材 |
